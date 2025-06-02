@@ -1,16 +1,28 @@
-const express = require('express');
-const {register, login, logout} = require('../controllers/auth.controller');
-const { default: isLogin } = require('../middlewares/isLogin.middleware');
+import express from "express";
+import {
+  register,
+  login,
+  logout,
+  verifyOTP,
+  requestNewOTP,
+} from "../controllers/auth.controller.js";
+import isLogin from "../middlewares/isLogin.middleware.js";
 
 const router = express.Router();
 
 // Register route
-router.post('/register', register);
+router.post("/register", register);
 
 // Login route
-router.post('/login', login);
+router.post("/login", login);
 
 // Logout route
-router.post('/logout', isLogin, logout);
+router.post("/logout", isLogin, logout);
 
-module.exports = router;
+// Verify-OTP route
+router.post("/verify-otp", isLogin, verifyOTP);
+
+// request New OTP
+router.post("/request-otp", isLogin, requestNewOTP);
+
+export default router;
