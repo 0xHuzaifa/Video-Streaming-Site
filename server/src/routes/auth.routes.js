@@ -19,6 +19,9 @@ router.post("/login", login);
 // Logout route
 router.post("/logout", isLogin, logout);
 
+// Verify-Email Token route
+router.post("/verify-email/:userId/:verificationToken", verifyOTP);
+
 // Verify-OTP route
 router.post("/verify-otp", isLogin, verifyOTP);
 

@@ -6,34 +6,40 @@ const userVerificationSchema = new Schema({
     type: Schema.Types.ObjectId,
     ref: "User",
     required: true,
+    unique: true,
+    index: true,
   },
 
-  verificationLink: {
-    type: Number,
-    select: false,
+  verificationToken: {
+    type: String,
   },
 
   verificationCode: {
     type: Number,
-    select: false,
   },
 
   verificationExpireAt: {
     type: Date,
-    select: false,
+    index: true,
   },
 
   codeSentLimit: {
     type: Number,
     default: 0,
-    select: false,
+    select: true,
   },
 
   codeSentLimitResetTime: {
     type: Date,
-    select: false,
+    select: true,
   },
 });
+
+// Time To Live (TTL) index - automatically delete expire verification records
+userVerificationSchema.index(
+  { verificationExpireAt: 1 },
+  { expireAfterSeconds: 0 }
+);
 
 userVerificationSchema.methods.generateVerificationCode = async function () {
   const currentTime = Date.now();
@@ -75,13 +81,36 @@ userVerificationSchema.methods.generateVerificationCode = async function () {
 
 userVerificationSchema.methods.generateVerificationToken = async function () {
   const verificationToken = crypto.randomBytes(32).toString("hex");
-  const token = crypto
+  const hashedToken = crypto
     .createHash("sha256")
     .update(verificationToken)
     .digest("hex");
-  this.verificationLink = token;
+  this.verificationToken = hashedToken;
+  this.verificationExpireAt = Date.now() + 5 * 60 * 1000;
   await this.save();
-  return token;
+  return verificationToken;
+};
+
+userVerificationSchema.methods.verifyToken = async function (token) {
+  const currentTime = Date.now();
+
+  if (!this.verificationExpireAt || currentTime > this.verificationExpireAt) {
+    throw new Error("Verification link has expired. Please request a new one");
+  }
+
+  const hashedToken = crypto.createHash("sha256").update(token).digest("hex");
+  const verify = this.verificationToken === hashedToken;
+  if (!verify) {
+    throw new Error("Invalid verification token");
+  }
+  this.verificationToken = undefined;
+  await this.save();
+  return true;
+};
+
+// Static method to clean up expired records (optional, since TTL index handles this)
+userVerificationSchema.static.cleanupExpired = function () {
+  return this.deleteMany({ verificationExpireAt: { $lt: new Date() } });
 };
 
 const UserVerification = mongoose.model(

@@ -1,19 +1,27 @@
+import jwt from "jsonwebtoken";
+
+// Utils
 import asyncHandler from "../utils/asyncHandler.js";
-import User from "../models/user.model.js";
 import ApiError from "../utils/ApiError.js";
 import ApiResponse from "../utils/ApiResponse.js";
 import generateTokens from "../utils/generateTokens.js";
-import emailVerificationTemplate from "../helper/emails-templates/emailVerificationTemplate.js";
+import sendEmail from "../utils/sendEmail.js";
+
+// Models
+import User from "../models/user.model.js";
+
+// Helper - Email Templates
+import emailVerificationTemplate from "../helper/emails-templates/emailVerificationLink.js";
 import passwordChangeTemplate from "../helper/emails-templates/passwordChangeTemplate.js";
 import accountDeleteTemplate from "../helper/emails-templates/accountDeleteTemplate.js";
-import sendEmail from "../utils/sendEmail.js";
+import UserVerification from "../models/userVerification.model.js";
 
 const options = {
   httpOnly: true,
   secure: true,
 };
 
-const register = asyncHandler(async (req, res) => {
+const register = asyncHandler(async (req, res, next) => {
   const { username, fullName, email, password } = req.body;
 
   // check fields are not empty
@@ -31,12 +39,7 @@ const register = asyncHandler(async (req, res) => {
 
   // find user
   const userExist = await User.findOne({
-    $or: [
-      { username: username, isVerified: true },
-      { email: email, isVerified: true },
-      { username: username, isVerified: false },
-      { email: email, isVerified: false },
-    ],
+    $or: [{ username: username }, { email: email }],
   });
 
   // if user exist with the username or email, return
@@ -52,33 +55,48 @@ const register = asyncHandler(async (req, res) => {
     password,
   });
 
-  // generate verification code
-  const verificationCode = newUser.generateVerificationCode();
-
-  // generate verification email template with verification code
-  const message = emailVerificationTemplate(verificationCode);
-  // send email to the user
-  const result = await sendEmail({
-    email,
-    subject: "Email Verification Code",
-    message,
+  const user = await UserVerification.create({
+    userId: newUser._id,
   });
 
-  // if email not sent successfully return
-  if (!result) {
-    throw new ApiError(
-      400,
-      "Something went wrong while sending verification email :("
+  try {
+    const verificationToken = await user.generateVerificationToken();
+    const url = `${process.env.FRONT_END_URL}/verify-email/${newUser._id}/${verificationToken}`;
+
+    return res.status(200).json(
+      new ApiResponse(200, "Verification Email sent.", {
+        verificationToken,
+        url,
+      })
     );
+  } catch (error) {
+    return res.status(500).json(new ApiResponse(500, "error."));
   }
 
+  // // generate verification email template with verification code
+  // const message = emailVerificationTemplate(verificationCode);
+  // // send email to the user
+  // const result = await sendEmail({
+  //   email,
+  //   subject: "Email Verification Code",
+  //   message,
+  // });
+
+  // // if email not sent successfully return
+  // if (!result) {
+  //   throw new ApiError(
+  //     400,
+  //     "Something went wrong while sending verification email :("
+  //   );
+  // }
+
   // email sent successfully
-  return res
-    .status(200)
-    .json(new ApiResponse(200, "Verification Email sent.", { newUser }));
+  // return res
+  //   .status(200)
+  //   .json(new ApiResponse(200, "Verification Email sent.", { newUser }));
 });
 
-const login = asyncHandler(async (req, res) => {
+const login = asyncHandler(async (req, res, next) => {
   const { nameOrEmail, password } = req.body;
 
   // check fields are not empty
@@ -142,7 +160,7 @@ const login = asyncHandler(async (req, res) => {
     );
 });
 
-const logout = asyncHandler(async (req, res) => {
+const logout = asyncHandler(async (req, res, next) => {
   await User.findByIdAndUpdate(
     req.user._id,
     {
@@ -163,11 +181,94 @@ const logout = asyncHandler(async (req, res) => {
 });
 
 /**
+ * Verify Email function will verify the token sent to the user email.
+ * It will check if the token is valid and not expired.
+ * If the token is valid, it will remove the token and expiry from the user database and save it.
+ */
+const verifyEmail = asyncHandler(async (req, res, next) => {
+  const { userId, verificationToken } = req.params;
+
+  if (!userId && !verificationToken) {
+    throw new ApiError(400, "Invalid verification link");
+  }
+
+  // find the user
+  const user = await User.findById(userId);
+
+  // check, if user exist or not
+  if (!user) {
+    throw new ApiError(404, "User not found!");
+  }
+
+  if (user.isVerified) {
+    new ApiResponse(200, "Email Already Verified")
+  }
+
+  // Find verification record
+  const userVerification = await UserVerification.findById(userId)
+
+  try {
+    // verify the token using verifyToken method of userVerification schema
+    await userVerification.verifyToken(verificationToken);
+
+    user.isVerified = true;
+    user.save();
+
+  } catch (error) {
+    console.error("Verification error:", error);
+    throw new ApiError(400, error.message || "Invalid or expired verification link");
+  }
+
+  // get the current time
+  const currentTime = Date.now();
+  // get the verification-code expiry time
+  const codeExpiry = user.verificationCodeExpire.getTime();
+
+  // check, if current time is more than code expiry time, OTP Expire
+  if (currentTime >= codeExpiry) {
+    throw new ApiError(403, "OTP Expire!");
+  }
+
+  // check, if user verification code equal to OTP, if not throw error
+  if (user.verificationCode !== Number(otp)) {
+    throw new ApiError(400, "Invalid OTP!");
+  }
+
+  /**
+   * OTP is valid, and user is verified
+   * Now remove verification code and expiry from user database and save
+   */
+  user.verificationCode = null;
+  user.verificationCodeExpire = null;
+  user.save({ validateModifiedOnly: true });
+
+  /**
+   * if OTP is generated for new user or unVerified user below condition will trigger.
+   * if OTP is generated for change password or delete account below condition will not be trigger.
+   */
+  if (!user.isVerified) {
+    user.isVerified = true;
+    user.save({ validateModifiedOnly: true });
+    // const { accessToken, refreshToken } = await generateTokens(user._id);
+
+    // res
+    //   .status(200)
+    //   .cookie("accessToken", accessToken, options)
+    //   .cookie("refreshToken", refreshToken, options)
+    //   .json(new ApiResponse(200, "Login successful", { user }));
+  }
+
+  return res
+    .status(200)
+    .json(new ApiResponse(200, "OTP Verified Successfully"));
+});
+
+/**
  * verify OTP function will verify the otp sent to the user email.
  * It will check if the otp is valid and not expired.
  * If the otp is valid, it will remove the otp and expiry from the user database and save it.
  */
-const verifyOTP = asyncHandler(async (req, res) => {
+const verifyOTP = asyncHandler(async (req, res, next) => {
   const { email } = req.user;
   const { otp } = req.body;
 
@@ -242,7 +343,7 @@ const verifyOTP = asyncHandler(async (req, res) => {
  * It will check if the user is exist or not, and also check the reason for generating OTP.
  * It will only generate 3 OTP with in 10mints.
  */
-const requestNewOTP = asyncHandler(async (req, res) => {
+const requestNewOTP = asyncHandler(async (req, res, next) => {
   const { email } = req.user;
   const { reason } = req.body;
 
@@ -307,4 +408,4 @@ const requestNewOTP = asyncHandler(async (req, res) => {
   return res.status(200).json(new ApiResponse(200, "New OTP sent"));
 });
 
-export { register, login, logout, verifyOTP, requestNewOTP };
+export { register, login, logout, verifyOTP, requestNewOTP, verifyEmail };
