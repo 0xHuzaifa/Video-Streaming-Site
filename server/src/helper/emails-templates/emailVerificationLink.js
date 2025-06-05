@@ -1,4 +1,4 @@
-const emailVerificationLink = (url, firstName) => {
+const emailVerificationLink = (url, fullName) => {
   return `
 <!DOCTYPE html>
     <html lang="en">
@@ -124,7 +124,7 @@ const emailVerificationLink = (url, firstName) => {
         
         <div class="content">
           <div class="greeting">
-            Hello ${firstName}!
+            Hello ${fullName}!
           </div>
           
           <div class="message">

@@ -1,5 +1,6 @@
 import mongoose, { Schema } from "mongoose";
 import crypto from "crypto";
+import ApiError from "../utils/ApiError.js";
 
 const userVerificationSchema = new Schema({
   userId: {
@@ -20,7 +21,6 @@ const userVerificationSchema = new Schema({
 
   verificationExpireAt: {
     type: Date,
-    index: true,
   },
 
   codeSentLimit: {
@@ -56,7 +56,7 @@ userVerificationSchema.methods.generateVerificationCode = async function () {
   if (this.codeSentLimit >= 3) {
     const remainingTimeMs = this.codeSentLimitResetTime - currentTime;
     const remainingTimeMin = Math.ceil(remainingTimeMs / (60 * 1000)); // convert to minutes
-    throw new Error(
+    throw new ApiError(400,
       `You have reached the limit. Please try again after ${remainingTimeMin} minutes.`
     );
   }
@@ -70,28 +70,16 @@ userVerificationSchema.methods.generateVerificationCode = async function () {
       .padStart(4, 0);
     return firstNumber + remainingNumbers;
   }
-  const verificationCode = generateFiveDigitCode();
-  this.verificationCode = verificationCode;
-  this.verificationCodeExpire = Date.now() + 10 * 60 * 1000; // 10min expiry
+  const verificationCode = generateFiveDigitCode(); 
+  this.verificationCode = crypto.createHash("sha256").update(verificationCode).digest('hex');
+  this.verificationExpireAt = Date.now() + 5 * 60 * 1000; // 5min expiry
   this.codeSentLimit = (parseInt(this.codeSentLimit) || 0) + 1; // increment code sent limit
   this.codeSentLimitResetTime = Date.now() + 10 * 60 * 1000; // 10min expiry
   await this.save();
   return verificationCode;
 };
 
-userVerificationSchema.methods.generateVerificationToken = async function () {
-  const verificationToken = crypto.randomBytes(32).toString("hex");
-  const hashedToken = crypto
-    .createHash("sha256")
-    .update(verificationToken)
-    .digest("hex");
-  this.verificationToken = hashedToken;
-  this.verificationExpireAt = Date.now() + 5 * 60 * 1000;
-  await this.save();
-  return verificationToken;
-};
-
-userVerificationSchema.methods.verifyToken = async function (token) {
+userVerificationSchema.methods.verifyCode = async function (token) {
   const currentTime = Date.now();
 
   if (!this.verificationExpireAt || currentTime > this.verificationExpireAt) {
@@ -104,6 +92,52 @@ userVerificationSchema.methods.verifyToken = async function (token) {
     throw new Error("Invalid verification token");
   }
   this.verificationToken = undefined;
+  this.verificationExpireAt = currentTime;
+  await this.save();
+  return true;
+};
+
+userVerificationSchema.methods.generateVerificationToken = async function () {
+  const currentTime = Date.now();
+  // Check if reset time has passed
+  if (this.codeSentLimitResetTime && currentTime >= this.codeSentLimitResetTime) {
+    this.codeSentLimit = 0;
+    this.codeSendLimitResetTime = null;
+  }
+  // Check if code sent limit is not reached
+  if (this.codeSentLimit >= 3) {
+    const remainingTimeMs = this.codeSentLimitResetTime - currentTime;
+    const remainingTimeMin = Math.ceil(remainingTimeMs / (60 * 1000)); // convert to minutes
+    throw new ApiError(400, `You have reached the limit. Please try again after ${remainingTimeMin} minutes.`);
+  }
+
+  const verificationToken = crypto.randomBytes(32).toString("hex");
+  const hashedToken = crypto
+    .createHash("sha256")
+    .update(verificationToken)
+    .digest("hex");
+  this.verificationToken = hashedToken;
+  this.verificationExpireAt = Date.now() + 5 * 60 * 1000; // 5min expiry
+  this.codeSentLimit = (parseInt(this.codeSentLimit) || 0) + 1; // increment code sent limit
+  this.codeSentLimitResetTime = Date.now() + 10 * 60 * 1000; // 10min expiry
+  await this.save();
+  return verificationToken;
+};
+
+userVerificationSchema.methods.verifyToken = async function (token) {
+  const currentTime = Date.now();
+
+  if (!this.verificationExpireAt || currentTime > this.verificationExpireAt) {
+    throw new ApiError(498, "Verification link has expired. Please request a new one");
+  }
+
+  const hashedToken = crypto.createHash("sha256").update(token).digest("hex");
+  const verify = this.verificationToken === hashedToken;
+  if (!verify) {
+    throw new ApiError(498, "Invalid verification token");
+  }
+  this.verificationToken = undefined;
+  this.verificationExpireAt = currentTime;
   await this.save();
   return true;
 };

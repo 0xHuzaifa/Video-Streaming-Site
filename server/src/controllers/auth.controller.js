@@ -1,5 +1,3 @@
-import jwt from "jsonwebtoken";
-
 // Utils
 import asyncHandler from "../utils/asyncHandler.js";
 import ApiError from "../utils/ApiError.js";
@@ -21,6 +19,48 @@ const options = {
   secure: true,
 };
 
+const generateVerificationLink = async (userId, fullName, email) => {
+  const user = await UserVerification.create({
+    userId: userId,
+  });
+
+  try {
+    const verificationToken = await user.generateVerificationToken();
+    const url = `${process.env.FRONT_END_URL}/verify-email/${userId}/${verificationToken}`;
+
+    // generate verification email template with verification code
+    const message = emailVerificationTemplate(url, fullName);
+
+    // send email to the user
+    const result = await sendEmail({
+      email,
+      subject: "Email Verification",
+      message,
+    });
+
+    // if email not sent successfully return
+    if (!result) {
+      throw new ApiError(
+        400,
+        "Something went wrong while sending verification email :("
+      );
+    }
+
+    return true;
+  } catch (error) {
+    throw new ApiResponse(
+      error.statusCode || 500,
+      error.message || "error while sending verification email"
+    );
+  }
+};
+
+/**
+ * Register function will register a new user.
+ * It will check if the user already exists with the same username or email.
+ * If the user does not exist, it will create a new user and send a verification email.
+ * Verification email will contain a link with a token to verify the email.
+ */
 const register = asyncHandler(async (req, res, next) => {
   const { username, fullName, email, password } = req.body;
 
@@ -55,45 +95,19 @@ const register = asyncHandler(async (req, res, next) => {
     password,
   });
 
-  const user = await UserVerification.create({
-    userId: newUser._id,
-  });
-
-  try {
-    const verificationToken = await user.generateVerificationToken();
-    const url = `${process.env.FRONT_END_URL}/verify-email/${newUser._id}/${verificationToken}`;
-
-    return res.status(200).json(
-      new ApiResponse(200, "Verification Email sent.", {
-        verificationToken,
-        url,
-      })
+  const result = await generateVerificationLink(
+    newUser._id,
+    newUser.fullName,
+    newUser.email
+  );
+  if (!result) {
+    return ApiError(
+      500,
+      "Something went wrong while creating verification link"
     );
-  } catch (error) {
-    return res.status(500).json(new ApiResponse(500, "error."));
   }
 
-  // // generate verification email template with verification code
-  // const message = emailVerificationTemplate(verificationCode);
-  // // send email to the user
-  // const result = await sendEmail({
-  //   email,
-  //   subject: "Email Verification Code",
-  //   message,
-  // });
-
-  // // if email not sent successfully return
-  // if (!result) {
-  //   throw new ApiError(
-  //     400,
-  //     "Something went wrong while sending verification email :("
-  //   );
-  // }
-
-  // email sent successfully
-  // return res
-  //   .status(200)
-  //   .json(new ApiResponse(200, "Verification Email sent.", { newUser }));
+  return res.status(200).json(new ApiResponse(200, "Verification Email sent."));
 });
 
 const login = asyncHandler(async (req, res, next) => {
@@ -107,47 +121,31 @@ const login = asyncHandler(async (req, res, next) => {
   // find user
   const user = await User.findOne({
     $or: [{ username: nameOrEmail }, { email: nameOrEmail }],
-  }).select(
-    "+password +verificationCode +verificationCodeExpire +codeSentLimit +codeSentLimitResetTime"
-  );
+  }).select("+password");
 
-  // check, if user exist not, and also compare password
+  // check, if user exists or not, and also compare password
   if (!user || !(await user.comparePassword(password))) {
     throw new ApiError(400, "Invalid email or password");
   }
-  // Generate tokens
-  const { accessToken, refreshToken } = await generateTokens(user._id);
-
-  const loggedInUser = await User.findById(user._id);
 
   // check, if user is not verified, than generate a verification code and send email
-  const isUserVerified = user.isVerified;
-  if (isUserVerified === false) {
-    const verificationCode = await user.generateVerificationCode();
-    const message = emailVerificationTemplate(verificationCode);
-    const result = await sendEmail({
-      email: user.email,
-      subject: "Email Verification Code",
-      message,
-    });
+  if (user.isVerified === false) {
+    const result = generateVerificationLink(user._id, user.fullName, user.email);
     if (!result) {
       throw new ApiError(
         400,
-        "Something went wrong while sending verification email :("
+        "Something went wrong while creating verification email :("
       );
     }
-    return res
-      .status(200)
-      .cookie("accessToken", accessToken, options)
-      .cookie("refreshToken", refreshToken, options)
-      .json(
-        new ApiResponse(200, "Login successful, Email Verification Sent", {
-          loggedInUser,
-          userVerified: isUserVerified,
-        })
-      );
+
+    return res.status(200).json(
+      new ApiResponse(200, "Verification Email sent.")
+    )
   }
 
+  const loggedInUser = await User.findById(user._id);
+  
+  const { accessToken, refreshToken } = await generateTokens(user._id);
   return res
     .status(200)
     .cookie("accessToken", accessToken, options)
@@ -155,7 +153,6 @@ const login = asyncHandler(async (req, res, next) => {
     .json(
       new ApiResponse(200, "Login successful", {
         loggedInUser,
-        userVerified: isUserVerified,
       })
     );
 });
@@ -181,9 +178,9 @@ const logout = asyncHandler(async (req, res, next) => {
 });
 
 /**
- * Verify Email function will verify the token sent to the user email.
- * It will check if the token is valid and not expired.
- * If the token is valid, it will remove the token and expiry from the user database and save it.
+ * verifyEmail function will verify the email of the user.
+ * It will check if the user exists or not, and also check if the verification token is valid.
+ * If the user exists and the verification token is valid, it will mark the user as verified.
  */
 const verifyEmail = asyncHandler(async (req, res, next) => {
   const { userId, verificationToken } = req.params;
@@ -201,66 +198,33 @@ const verifyEmail = asyncHandler(async (req, res, next) => {
   }
 
   if (user.isVerified) {
-    new ApiResponse(200, "Email Already Verified")
+    new ApiResponse(200, "Email Already Verified");
   }
 
   // Find verification record
-  const userVerification = await UserVerification.findById(userId)
+  const userVerification = await UserVerification.findOne({ userId: userId });
+
+  if (!userVerification) {
+    throw new ApiError(404, "Verification record not found!");
+  }
 
   try {
     // verify the token using verifyToken method of userVerification schema
     await userVerification.verifyToken(verificationToken);
 
     user.isVerified = true;
-    user.save();
+    await user.save();
 
+    return res
+      .status(200)
+      .json(new ApiResponse(200, "Email Verified Successfully"));
   } catch (error) {
     console.error("Verification error:", error);
-    throw new ApiError(400, error.message || "Invalid or expired verification link");
+    throw new ApiError(
+      error.statusCode || 500,
+      error.message || "Something went wrong while verifying link"
+    );
   }
-
-  // get the current time
-  const currentTime = Date.now();
-  // get the verification-code expiry time
-  const codeExpiry = user.verificationCodeExpire.getTime();
-
-  // check, if current time is more than code expiry time, OTP Expire
-  if (currentTime >= codeExpiry) {
-    throw new ApiError(403, "OTP Expire!");
-  }
-
-  // check, if user verification code equal to OTP, if not throw error
-  if (user.verificationCode !== Number(otp)) {
-    throw new ApiError(400, "Invalid OTP!");
-  }
-
-  /**
-   * OTP is valid, and user is verified
-   * Now remove verification code and expiry from user database and save
-   */
-  user.verificationCode = null;
-  user.verificationCodeExpire = null;
-  user.save({ validateModifiedOnly: true });
-
-  /**
-   * if OTP is generated for new user or unVerified user below condition will trigger.
-   * if OTP is generated for change password or delete account below condition will not be trigger.
-   */
-  if (!user.isVerified) {
-    user.isVerified = true;
-    user.save({ validateModifiedOnly: true });
-    // const { accessToken, refreshToken } = await generateTokens(user._id);
-
-    // res
-    //   .status(200)
-    //   .cookie("accessToken", accessToken, options)
-    //   .cookie("refreshToken", refreshToken, options)
-    //   .json(new ApiResponse(200, "Login successful", { user }));
-  }
-
-  return res
-    .status(200)
-    .json(new ApiResponse(200, "OTP Verified Successfully"));
 });
 
 /**
