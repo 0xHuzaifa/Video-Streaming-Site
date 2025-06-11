@@ -6,8 +6,7 @@ export const SignupSchema = z
     fullName: z.string().min(5, "Full Name must be at least 5 characters long"),
     email: z.string().email("Invalid email address"),
     password: z.string().min(6, "Password must be at least 6 characters long"),
-    confirmPassword: z
-      .string()
+    confirmPassword: z.string(),
   })
   .refine((data) => data.password === data.confirmPassword, {
     message: "Passwords do not match",
@@ -15,3 +14,10 @@ export const SignupSchema = z
   });
 
 export type SignupSchemaType = z.infer<typeof SignupSchema>;
+
+export const LoginSchema = z.object({
+  email: z.string().email("Invalid email address"),
+  password: z.string(),
+});
+
+export type LoginSchemaType = z.infer<typeof LoginSchema>;
