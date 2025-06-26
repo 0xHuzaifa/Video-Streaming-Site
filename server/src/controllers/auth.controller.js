@@ -21,15 +21,15 @@ const options = {
 
 const generateVerificationLink = async (userId, fullName, email) => {
   try {
-  const user = await UserVerification.findOneAndUpdate(
-    {userId},                       // search criteria
-    {userId},                       // update document
-    {
-      upsert: true,                 // create if doesn't exist
-      new: true,                    // return updated document
-      setDefaultsOnInsert: true,    // apply schema defaults if new doc
-    }
-  );
+    const user = await UserVerification.findOneAndUpdate(
+      { userId }, // search criteria
+      { userId }, // update document
+      {
+        upsert: true, // create if doesn't exist
+        new: true, // return updated document
+        setDefaultsOnInsert: true, // apply schema defaults if new doc
+      }
+    );
 
     const verificationToken = await user.generateVerificationToken();
     const url = `${process.env.FRONT_END_URL}/verify-email/${userId}/${verificationToken}`;
@@ -54,7 +54,7 @@ const generateVerificationLink = async (userId, fullName, email) => {
 
     return true;
   } catch (error) {
-    throw new ApiResponse(
+    throw new ApiError(
       error.statusCode || 500,
       error.message || "error while sending verification email"
     );
@@ -136,7 +136,12 @@ const login = asyncHandler(async (req, res, next) => {
 
   // check, if user is not verified, than generate a verification code and send email
   if (user.isVerified === false) {
-    const result = generateVerificationLink(user._id, user.fullName, user.email);
+    const result = await generateVerificationLink(
+      user._id,
+      user.fullName,
+      user.email
+    );
+    
     if (!result) {
       throw new ApiError(
         400,
@@ -144,13 +149,13 @@ const login = asyncHandler(async (req, res, next) => {
       );
     }
 
-    return res.status(200).json(
-      new ApiResponse(200, "Verification Email sent.")
-    )
+    return res
+      .status(200)
+      .json(new ApiResponse(200, "Verification Email sent."));
   }
 
   const loggedInUser = await User.findById(user._id);
-  
+
   const { accessToken, refreshToken } = await generateTokens(user._id);
   return res
     .status(200)
