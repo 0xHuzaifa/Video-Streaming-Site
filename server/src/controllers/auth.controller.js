@@ -20,11 +20,17 @@ const options = {
 };
 
 const generateVerificationLink = async (userId, fullName, email) => {
-  const user = await UserVerification.create({
-    userId: userId,
-  });
-
   try {
+  const user = await UserVerification.findOneAndUpdate(
+    {userId},                       // search criteria
+    {userId},                       // update document
+    {
+      upsert: true,                 // create if doesn't exist
+      new: true,                    // return updated document
+      setDefaultsOnInsert: true,    // apply schema defaults if new doc
+    }
+  );
+
     const verificationToken = await user.generateVerificationToken();
     const url = `${process.env.FRONT_END_URL}/verify-email/${userId}/${verificationToken}`;
 
