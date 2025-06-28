@@ -9,6 +9,7 @@ interface UnVerifiedUserAuthResponse extends BaseAuthResponse {
 }
 
 interface VerifiedUserAuthResponse extends BaseAuthResponse {
+  success: true;
   data: {
     loggedInUser: {
       id: string;
@@ -31,4 +32,24 @@ type AuthResponse =
   | VerifiedUserAuthResponse
   | ErrorAuthResponse;
 
+
+const isUnverifiedAuth = (
+  response: AuthResponse
+): response is UnVerifiedUserAuthResponse => {
+  return (
+    response.success === true && !("data" in response) && !("error" in response)
+  );
+};
+
+const isSuccessfulAuth = (
+  response: AuthResponse
+): response is VerifiedUserAuthResponse => {
+  return response.success === true && "data" in response;
+};
+
+const isErrorAuth = (response: AuthResponse): response is ErrorAuthResponse => {
+  return response.success === false && "error" in response;
+};
+
 export type { AuthResponse };
+export { isSuccessfulAuth, isErrorAuth, isUnverifiedAuth }
