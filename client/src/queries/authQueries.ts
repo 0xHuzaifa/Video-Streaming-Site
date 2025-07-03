@@ -3,7 +3,12 @@ import { type LoginSchemaType, type SignupSchemaType } from "@/schema";
 import getErrorMessage from "@/utils/getErrorMessage";
 import { toast } from "sonner";
 import { useMutation, type UseMutationOptions } from "@tanstack/react-query";
-import type { AuthResponse } from "@/lib/types/authTypes";
+import {
+  isSuccessfulAuth,
+  isUnverifiedAuth,
+  type AuthResponse,
+} from "@/lib/types/authTypes";
+import { useAppContext } from "@/hooks/UseAppContext";
 
 const signUpMutationOptions = (
   options?: Partial<UseMutationOptions<AuthResponse, Error, SignupSchemaType>>
@@ -16,7 +21,7 @@ const signUpMutationOptions = (
       context: unknown
     ) => {
       console.log("signUp successful", data);
-      toast.success(data.message || "Sign up successful");
+      toast.info(data.message || "Sign up successful");
       options?.onSuccess?.(data, variables, context);
     },
     onError: (error: Error, variables: SignupSchemaType, context: unknown) => {
@@ -31,13 +36,13 @@ const signUpMutationOptions = (
 
 const signUp = async (data: SignupSchemaType): Promise<AuthResponse> => {
   const response = await api.post("/auth/register", data);
-  console.log("success", response);
   return response.data;
 };
 
 const loginMutationOptions = (
   options?: Partial<UseMutationOptions<AuthResponse, Error, LoginSchemaType>>
 ) => {
+  const { setUser, setIsLogin } = useAppContext();
   return useMutation({
     mutationFn: (data: LoginSchemaType) => login(data),
     onSuccess: (
@@ -45,11 +50,25 @@ const loginMutationOptions = (
       variables: LoginSchemaType,
       context?: unknown
     ) => {
-      toast.success(data.message || "Login successful");
-      console.log("login successful", data);
-      localStorage.setItem("user", JSON.stringify(data.data));
+      if (
+        isUnverifiedAuth(data) &&
+        data.message === "Verification Email sent."
+      ) {
+        toast.info(data.message);
+        return;
+      }
+
+      if (isSuccessfulAuth(data)) {
+        localStorage.setItem("user", JSON.stringify(data?.data?.loggedInUser));
+        setUser(data?.data?.loggedInUser);
+        localStorage.setItem("isLogin", "true");
+        setIsLogin(true);
+        toast.success(data.message || "Login successful");
+        console.log("login successful", data);
+      }
       options?.onSuccess?.(data, variables, context);
     },
+
     onError: (error: Error, variables: LoginSchemaType, context?: unknown) => {
       console.log("login failed", error);
       const message = getErrorMessage(error);
@@ -61,9 +80,8 @@ const loginMutationOptions = (
   });
 };
 
-const login = async (data: LoginSchemaType): Promise<any> => {
+const login = async (data: LoginSchemaType): Promise<AuthResponse> => {
   const response = await api.post("/auth/login", data);
-  console.log("success", response);
   return response.data;
 };
 
