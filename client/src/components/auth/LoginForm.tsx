@@ -15,26 +15,37 @@ import {
   FormItem,
   FormLabel,
 } from "../ui/form";
-import { Eye, EyeOff } from "lucide-react";
+import { Eye, EyeOff, Loader2Icon } from "lucide-react";
 import { useState } from "react";
+import { loginMutationOptions } from "@/queries/authQueries";
 
 export function LoginForm({
   className,
   ...props
 }: React.ComponentProps<"form">) {
+  // states
   const [password, setPassword] = useState(false);
 
+  // useForm hook for form handling
+  // This hook integrates with Zod for schema validation
   const form = useForm({
     resolver: zodResolver(LoginSchema),
     defaultValues: {
-      usernameOrEmail: "",
+      nameOrEmail: "",
       password: "",
     },
   });
 
-  const onSubmit: SubmitHandler<LoginSchemaType> = (data) => {
-    console.log(data);
+  // Mutation for login
+  // This uses React Query's useMutation hook to handle the login process
+  const loginMutation = loginMutationOptions();
+
+  const onSubmit: SubmitHandler<LoginSchemaType> = async (data) => {
+    console.log("on submit", data);
+    await loginMutation.mutateAsync(data);
   };
+
+  console.log("login mutation paused", loginMutation.isPending);
 
   return (
     <Form {...form}>
@@ -49,13 +60,14 @@ export function LoginForm({
             Enter your email below to login to your account
           </p>
         </div>
+
         <div className="grid gap-6">
           {/* Username or Email field */}
           <div className="grid gap-3">
             <FormField
               control={form.control}
-              name="usernameOrEmail"
-              render={(field) => (
+              name="nameOrEmail"
+              render={({ field }) => (
                 <FormItem>
                   <FormLabel>Username or Email</FormLabel>
                   <FormControl>
@@ -64,8 +76,8 @@ export function LoginForm({
                       {...field}
                     />
                   </FormControl>
-                  <FormDescription>
-                    {form.formState.errors.usernameOrEmail?.message}
+                  <FormDescription className="text-red-500">
+                    {form.formState.errors.nameOrEmail?.message}
                   </FormDescription>
                 </FormItem>
               )}
@@ -77,7 +89,7 @@ export function LoginForm({
             <FormField
               control={form.control}
               name="password"
-              render={(field) => (
+              render={({ field }) => (
                 <FormItem>
                   <div className="flex items-center">
                     <FormLabel>Password</FormLabel>
@@ -89,19 +101,40 @@ export function LoginForm({
                     </a>
                   </div>
                   <FormControl>
-                    <Input
-                      placeholder="Enter your username or email"
-                      {...field}
-                    />
+                    <div className="relative">
+                      <Input
+                        type={password ? "text" : "password"}
+                        placeholder="******"
+                        {...field}
+                      />
+                      {password ? (
+                        <Eye
+                          className="w-5 h-5 absolute top-0 mt-2 mr-2 right-0 cursor-pointer"
+                          onClick={() => setPassword(!password)}
+                        />
+                      ) : (
+                        <EyeOff
+                          className="w-5 h-5 absolute top-0 mt-2 mr-2 right-0 cursor-pointer"
+                          onClick={() => setPassword(!password)}
+                        />
+                      )}
+                    </div>
                   </FormControl>
-                  <FormDescription>
+                  <FormDescription className="text-red-500">
                     {form.formState.errors.password?.message}
                   </FormDescription>
                 </FormItem>
               )}
             />
           </div>
-          <Button type="submit" className="w-full">
+          <Button
+            type="submit"
+            className="w-full disabled:opacity-50 disabled:cursor-none relative"
+            disabled={loginMutation.isPending}
+          >
+            {loginMutation.isPending && (
+              <Loader2Icon className="absolute left-[33%] sm:left-[37%] animate-spin" />
+            )}
             Login
           </Button>
 
