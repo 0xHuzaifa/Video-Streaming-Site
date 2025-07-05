@@ -16,8 +16,10 @@ import {
   FormItem,
   FormLabel,
 } from "../ui/form";
-import { Eye, EyeOff } from "lucide-react";
+import { Eye, EyeOff, Loader2Icon } from "lucide-react";
 import { useState } from "react";
+import { signUpMutationOptions } from "@/queries/authQueries";
+import { useNavigate } from "react-router-dom";
 
 export function SignupForm({
   className,
@@ -25,6 +27,8 @@ export function SignupForm({
 }: React.ComponentProps<"form">) {
   const [password, setPassword] = useState(false);
   const [confirmPassword, setConfirmPassword] = useState(false);
+
+  const navigate = useNavigate();
 
   const form = useForm<SignupSchemaType>({
     resolver: zodResolver(SignupSchema),
@@ -37,8 +41,15 @@ export function SignupForm({
     },
   });
 
-  const onSubmit: SubmitHandler<SignupSchemaType> = (data) => {
+  const signUpMutation = signUpMutationOptions({
+    onSuccess: () => {
+      navigate("/login");
+    },
+  });
+
+  const onSubmit: SubmitHandler<SignupSchemaType> = async (data) => {
     console.log(data);
+    signUpMutation.mutate(data);
   };
 
   return (
@@ -59,7 +70,7 @@ export function SignupForm({
           {/* Username field */}
           <FormField
             control={form.control}
-            name="username" 
+            name="username"
             render={({ field }) => (
               <FormItem className="-mb-2">
                 <FormLabel>Username</FormLabel>
@@ -127,12 +138,12 @@ export function SignupForm({
                     />
                     {password ? (
                       <Eye
-                        className="absolute top-0 mt-1.5 mr-2 right-0 cursor-pointer"
+                        className="w-5 h-5 absolute top-0 mt-2 mr-2 right-0 cursor-pointer"
                         onClick={() => setPassword(!password)}
                       />
                     ) : (
                       <EyeOff
-                        className="absolute top-0 mt-1.5 mr-2 right-0 cursor-pointer"
+                        className="w-5 h-5 absolute top-0 mt-2 mr-2 right-0 cursor-pointer"
                         onClick={() => setPassword(!password)}
                       />
                     )}
@@ -161,12 +172,12 @@ export function SignupForm({
                     />
                     {confirmPassword ? (
                       <Eye
-                        className="absolute top-0 mt-1.5 mr-2 right-0 cursor-pointer"
+                        className="w-5 h-5 absolute top-0 mt-2 mr-2 right-0 cursor-pointer"
                         onClick={() => setConfirmPassword(!confirmPassword)}
                       />
                     ) : (
                       <EyeOff
-                        className="absolute top-0 mt-1.5 mr-2 right-0 cursor-pointer"
+                        className="w-5 h-5 absolute top-0 mt-2 mr-2 right-0 cursor-pointer"
                         onClick={() => setConfirmPassword(!confirmPassword)}
                       />
                     )}
@@ -179,7 +190,14 @@ export function SignupForm({
             )}
           />
 
-          <Button type="submit" className="w-full">
+          <Button
+            type="submit"
+            className="w-full disabled:opacity-50 disabled:cursor-none"
+            disabled={signUpMutation.isPending}
+          >
+            {signUpMutation.isPending && (
+              <Loader2Icon className="animate-spin" />
+            )}
             SignUp
           </Button>
 
