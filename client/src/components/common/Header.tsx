@@ -22,6 +22,16 @@ export default function Header({
   setSidebarOpen: (open: boolean) => void;
 }) {
   const { isLogin } = useAppContext();
+
+  const logout = () => {
+    // Logic to handle logout
+    console.log("User logged out");
+    // Clear user data and update login state
+    localStorage.removeItem("user");
+    localStorage.setItem("isLogin", "false");
+    // Optionally, you can redirect the user or update the UI accordingly
+  };
+
   return (
     <motion.header
       initial={{ y: -100, opacity: 0 }}
@@ -123,14 +133,25 @@ export default function Header({
           </motion.div>
           <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
             {isLogin ? (
-              <Avatar className="w-10 h-10 ring-2 ring-purple-500/30 hover:ring-purple-500/50 transition-all">
-                <AvatarImage src="/placeholder.svg?height=40&width=40" />
-                <AvatarFallback className="bg-gradient-to-r from-purple-500 to-blue-500 text-white">
-                  <User className="w-5 h-5" />
-                </AvatarFallback>
-              </Avatar>
+              <div className="flex gap-x-2">
+                <Avatar className="w-10 h-10 ring-2 ring-purple-500/30 hover:ring-purple-500/50 transition-all">
+                  <AvatarImage src="/placeholder.svg?height=40&width=40" />
+                  <AvatarFallback className="bg-gradient-to-r from-purple-500 to-blue-500 text-white">
+                    <User className="w-5 h-5" />
+                  </AvatarFallback>
+                </Avatar>
+
+                <Button
+                  className="bg-gradient-to-r from-purple-500 to-blue-500"
+                  onClick={logout}
+                >
+                  Logout
+                </Button>
+              </div>
             ) : (
-              <Button className="bg-gradient-to-r from-purple-500 to-blue-500">Sign In</Button>
+              <Button className="bg-gradient-to-r from-purple-500 to-blue-500">
+                Sign In
+              </Button>
             )}
           </motion.div>
         </div>
