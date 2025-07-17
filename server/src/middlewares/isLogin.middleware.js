@@ -4,7 +4,7 @@ import ApiError from "../utils/ApiError.js";
 
 const isLogin = asyncHandler((req, res, next) => {
   try {
-    const token = req.cookie.accessToken || req.headers.authorization;
+    const token = req.cookies.accessToken || req.headers.authorization;
     if (!token) {
       throw new ApiError(404, "Token not found");
     }
