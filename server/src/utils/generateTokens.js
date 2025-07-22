@@ -4,8 +4,8 @@ import ApiError from "./ApiError.js";
 const generateTokens = async (id) => {
   try {
     const user = await User.findById(id);
-    const { accessToken } = user.generateAccessToken();
-    const { refreshToken } = user.generateRefreshToken();
+    const accessToken = user.generateAccessToken();
+    const refreshToken = user.generateRefreshToken();
     user.refreshToken = refreshToken;
     user.save({ validateBeforeSave: false });
     return { accessToken, refreshToken };
