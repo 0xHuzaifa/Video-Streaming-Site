@@ -6,6 +6,7 @@ import { useMutation, type UseMutationOptions } from "@tanstack/react-query";
 import {
   isSuccessfulAuth,
   isUnverifiedAuth,
+  isLogoutAuth,
   type AuthResponse,
 } from "@/lib/types/authTypes";
 import { useAppContext } from "@/hooks/UseAppContext";
@@ -85,4 +86,46 @@ const login = async (data: LoginSchemaType): Promise<AuthResponse> => {
   return response.data;
 };
 
-export { loginMutationOptions, signUpMutationOptions };
+const logoutMutationOptions = (
+  options?: Partial<UseMutationOptions<AuthResponse, Error>>
+) => {
+  const { setUser, setIsLogin } = useAppContext();
+  return useMutation({
+    mutationFn: logout,
+    onSuccess: (data: AuthResponse, variables, context) => {
+      if (isLogoutAuth(data)) {
+        setUser(undefined);
+        setIsLogin(false);
+        console.log("logout successful");
+        localStorage.removeItem("user");
+        localStorage.removeItem("isLogin");
+        toast.success(data.message || "Logout successful");
+      }
+
+      options?.onSuccess?.(data, variables, context);
+    },
+
+    onError: (error: Error, variables, context) => {
+      setUser(undefined);
+      setIsLogin(false);
+      const message = getErrorMessage(error);
+      console.log("error message", message);
+      toast.error(message);
+      console.log("logout successful");
+      localStorage.removeItem("user");
+      localStorage.removeItem("isLogin");
+      toast.success("Logout successful");
+      options?.onError?.(error, variables, context);
+    },
+
+    ...options,
+  });
+};
+
+const logout = async (): Promise<AuthResponse> => {
+  const response = await api.post("/auth/logout");
+  console.log(response);
+  return response.data;
+};
+
+export { loginMutationOptions, signUpMutationOptions, logoutMutationOptions };
