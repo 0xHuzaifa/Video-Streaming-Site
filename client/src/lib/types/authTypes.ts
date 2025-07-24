@@ -27,11 +27,15 @@ interface ErrorAuthResponse extends BaseAuthResponse {
   stack?: string;
 }
 
+interface LogoutAuthResponse extends BaseAuthResponse {
+  success: true;
+}
+
 type AuthResponse =
   | UnVerifiedUserAuthResponse
   | VerifiedUserAuthResponse
-  | ErrorAuthResponse;
-
+  | ErrorAuthResponse
+  | LogoutAuthResponse;
 
 const isUnverifiedAuth = (
   response: AuthResponse
@@ -51,5 +55,11 @@ const isErrorAuth = (response: AuthResponse): response is ErrorAuthResponse => {
   return response.success === false && "error" in response;
 };
 
+const isLogoutAuth = (
+  response: AuthResponse
+): response is LogoutAuthResponse => {
+  return response.success === true && !("data" in response);
+};
+
 export type { AuthResponse };
-export { isSuccessfulAuth, isErrorAuth, isUnverifiedAuth }
+export { isSuccessfulAuth, isErrorAuth, isUnverifiedAuth, isLogoutAuth };
