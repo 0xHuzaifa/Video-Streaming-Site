@@ -113,7 +113,16 @@ const register = asyncHandler(async (req, res, next) => {
     );
   }
 
-  return res.status(200).json(new ApiResponse(200, "Verification Email sent."));
+  return res
+    .status(200)
+    .json(
+      new ApiResponse(
+        200,
+        "Verification Email sent.",
+        undefined,
+        "UNVERIFIED_REGISTER"
+      )
+    );
 });
 
 const login = asyncHandler(async (req, res, next) => {
@@ -141,7 +150,7 @@ const login = asyncHandler(async (req, res, next) => {
       user.fullName,
       user.email
     );
-    
+
     if (!result) {
       throw new ApiError(
         400,
@@ -151,7 +160,7 @@ const login = asyncHandler(async (req, res, next) => {
 
     return res
       .status(200)
-      .json(new ApiResponse(200, "Verification Email sent."));
+      .json(new ApiResponse(200, "Verification Email sent.", undefined, "UNVERIFIED_LOGIN"));
   }
 
   const loggedInUser = await User.findById(user._id);
@@ -185,7 +194,7 @@ const logout = asyncHandler(async (req, res, next) => {
     .status(200)
     .clearCookie("accessToken", options)
     .clearCookie("refreshToken", options)
-    .json(new ApiResponse(200, "User Logged out"));
+    .json(new ApiResponse(200, "User Logged out", undefined, "LOGOUT"));
 });
 
 /**
@@ -228,7 +237,14 @@ const verifyEmail = asyncHandler(async (req, res, next) => {
 
     return res
       .status(200)
-      .json(new ApiResponse(200, "Email Verified Successfully"));
+      .json(
+        new ApiResponse(
+          200,
+          "Email Verified Successfully",
+          undefined,
+          "VERIFY_EMAIL"
+        )
+      );
   } catch (error) {
     console.error("Verification error:", error);
     throw new ApiError(
