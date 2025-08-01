@@ -7,6 +7,7 @@ import {
   isSuccessfulAuth,
   isUnverifiedAuth,
   isLogoutAuth,
+  isVerifyEmailAuth,
   type AuthResponse,
 } from "@/lib/types/authTypes";
 import { useAppContext } from "@/hooks/UseAppContext";
@@ -128,4 +129,38 @@ const logout = async (): Promise<AuthResponse> => {
   return response.data;
 };
 
-export { loginMutationOptions, signUpMutationOptions, logoutMutationOptions };
+const verifyEmailMutationOptions = (
+  options?: Partial<
+    UseMutationOptions<AuthResponse, Error, { userId: string; token: string }>
+  >
+) => {
+  return useMutation({
+    mutationFn: ({ userId, token }) => verifyEmail(userId, token),
+    onSuccess: (data: AuthResponse, variables, context) => {
+      toast.success(data.message || "Email verified successfully");
+      options?.onSuccess?.(data, variables, context);
+    },
+    onError: (error: Error, variables, context) => {
+      const message = getErrorMessage(error);
+      toast.error(message);
+      options?.onError?.(error, variables, context);
+    },
+    ...options,
+  });
+};
+
+const verifyEmail = async (
+  userId: string,
+  token: string
+): Promise<AuthResponse> => {
+  const response = await api.post(`/auth/verify-email/${userId}/${token}`);
+  console.log(response);
+  return response.data;
+};
+
+export {
+  loginMutationOptions,
+  signUpMutationOptions,
+  logoutMutationOptions,
+  verifyEmailMutationOptions,
+};
