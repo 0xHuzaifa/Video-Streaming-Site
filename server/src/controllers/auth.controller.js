@@ -120,7 +120,7 @@ const register = asyncHandler(async (req, res, next) => {
         200,
         "Verification Email sent.",
         undefined,
-        "UNVERIFIED_REGISTER"
+        "UNVERIFIED_USER"
       )
     );
 });
@@ -160,7 +160,14 @@ const login = asyncHandler(async (req, res, next) => {
 
     return res
       .status(200)
-      .json(new ApiResponse(200, "Verification Email sent.", undefined, "UNVERIFIED_LOGIN"));
+      .json(
+        new ApiResponse(
+          200,
+          "Verification Email sent.",
+          undefined,
+          "UNVERIFIED_USER"
+        )
+      );
   }
 
   const loggedInUser = await User.findById(user._id);
