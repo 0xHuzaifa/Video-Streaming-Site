@@ -43,7 +43,7 @@ export function SignupForm({
 
   const signUpMutation = signUpMutationOptions({
     onSuccess: () => {
-      navigate("/login");
+      navigate("/verify-email");
     },
   });
 
