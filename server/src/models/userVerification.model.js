@@ -46,7 +46,7 @@ userVerificationSchema.methods.generateVerificationCode = async function () {
   // Check if reset time has passed
   if (
     this.codeSentLimitResetTime &&
-    currentTime >= this.codeSentLimitResetTime
+    currentTime >= this.codeSentLimitResetTime.getTime()
   ) {
     this.codeSentLimit = 0;
     this.codeSentLimitResetTime = null;
@@ -54,7 +54,7 @@ userVerificationSchema.methods.generateVerificationCode = async function () {
 
   // check if code sent limit is not reached
   if (this.codeSentLimit >= 3) {
-    const remainingTimeMs = this.codeSentLimitResetTime - currentTime;
+    const remainingTimeMs = this.codeSentLimitResetTime.getTime() - currentTime;
     const remainingTimeMin = Math.ceil(remainingTimeMs / (60 * 1000)); // convert to minutes
     throw new ApiError(
       400,
@@ -78,7 +78,7 @@ userVerificationSchema.methods.generateVerificationCode = async function () {
     .digest("hex");
   this.verificationExpireAt = new Date(Date.now() + 5 * 60 * 1000); // 5min expiry
   this.codeSentLimit = (parseInt(this.codeSentLimit) || 0) + 1; // increment code sent limit
-  this.codeSentLimitResetTime = Date.now() + 10 * 60 * 1000; // 10min expiry
+  this.codeSentLimitResetTime = new Date(Date.now() + 10 * 60 * 1000); // 10min expiry
   await this.save();
   return verificationCode;
 };
@@ -86,7 +86,10 @@ userVerificationSchema.methods.generateVerificationCode = async function () {
 userVerificationSchema.methods.verifyCode = async function (token) {
   const currentTime = Date.now();
 
-  if (!this.verificationExpireAt || currentTime > this.verificationExpireAt) {
+  if (
+    !this.verificationExpireAt ||
+    currentTime > this.verificationExpireAt.getTime()
+  ) {
     throw new Error("Verification link has expired. Please request a new one");
   }
 
@@ -106,14 +109,14 @@ userVerificationSchema.methods.generateVerificationToken = async function () {
   // Check if reset time has passed
   if (
     this.codeSentLimitResetTime &&
-    currentTime >= this.codeSentLimitResetTime
+    currentTime >= this.codeSentLimitResetTime.getTime()
   ) {
     this.codeSentLimit = 0;
-    this.codeSendLimitResetTime = null;
+    this.codeSentLimitResetTime = null;
   }
   // Check if code sent limit is not reached
   if (this.codeSentLimit >= 3) {
-    const remainingTimeMs = this.codeSentLimitResetTime - currentTime;
+    const remainingTimeMs = this.codeSentLimitResetTime.getTime() - currentTime;
     const remainingTimeMin = Math.ceil(remainingTimeMs / (60 * 1000)); // convert to minutes
     throw new ApiError(
       400,
@@ -129,7 +132,7 @@ userVerificationSchema.methods.generateVerificationToken = async function () {
   this.verificationToken = hashedToken;
   this.verificationExpireAt = new Date(Date.now() + 5 * 60 * 1000); // 5min expiry
   this.codeSentLimit = (parseInt(this.codeSentLimit) || 0) + 1; // increment code sent limit
-  this.codeSentLimitResetTime = Date.now() + 10 * 60 * 1000; // 10min expiry
+  this.codeSentLimitResetTime = new Date(Date.now() + 10 * 60 * 1000); // 10min expiry
   await this.save();
   return verificationToken;
 };
@@ -137,7 +140,10 @@ userVerificationSchema.methods.generateVerificationToken = async function () {
 userVerificationSchema.methods.verifyToken = async function (token) {
   const currentTime = Date.now();
 
-  if (!this.verificationExpireAt || currentTime > this.verificationExpireAt) {
+  if (
+    !this.verificationExpireAt ||
+    currentTime > this.verificationExpireAt.getTime()
+  ) {
     throw new ApiError(
       498,
       "Verification link has expired. Please request a new one"
