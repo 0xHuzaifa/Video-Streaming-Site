@@ -6,6 +6,7 @@ interface BaseAuthResponse {
 
 interface UnVerifiedUserAuthResponse extends BaseAuthResponse {
   success: true;
+  type: "UNVERIFIED_USER";
 }
 
 interface VerifiedUserAuthResponse extends BaseAuthResponse {
@@ -29,20 +30,37 @@ interface ErrorAuthResponse extends BaseAuthResponse {
 
 interface LogoutAuthResponse extends BaseAuthResponse {
   success: true;
+  type: "LOGOUT";
+}
+
+interface VerifyEmailAuthResponse extends BaseAuthResponse {
+  success: true;
+  type: "VERIFY_EMAIL";
 }
 
 type AuthResponse =
   | UnVerifiedUserAuthResponse
   | VerifiedUserAuthResponse
   | ErrorAuthResponse
-  | LogoutAuthResponse;
+  | LogoutAuthResponse
+  | VerifyEmailAuthResponse;
 
 const isUnverifiedAuth = (
   response: AuthResponse
 ): response is UnVerifiedUserAuthResponse => {
-  return (
-    response.success === true && !("data" in response) && !("error" in response)
-  );
+  // Check if it's a successful response without data (unverified user)
+  const isUnverified =
+    response.success === true &&
+    !("data" in response) &&
+    !("errors" in response);
+
+  // If type field exists, also check it matches
+  if ("type" in response) {
+    return isUnverified && response.type === "UNVERIFIED_USER";
+  }
+
+  // Fallback: if no type field, assume unverified based on structure
+  return isUnverified;
 };
 
 const isSuccessfulAuth = (
@@ -58,8 +76,28 @@ const isErrorAuth = (response: AuthResponse): response is ErrorAuthResponse => {
 const isLogoutAuth = (
   response: AuthResponse
 ): response is LogoutAuthResponse => {
-  return response.success === true && !("data" in response);
+  return (
+    response.success === true &&
+    "type" in response &&
+    response.type === "LOGOUT"
+  );
+};
+
+const isVerifyEmailAuth = (
+  response: AuthResponse
+): response is VerifyEmailAuthResponse => {
+  return (
+    response.success === true &&
+    "type" in response &&
+    response.type === "VERIFY_EMAIL"
+  );
 };
 
 export type { AuthResponse };
-export { isSuccessfulAuth, isErrorAuth, isUnverifiedAuth, isLogoutAuth };
+export {
+  isSuccessfulAuth,
+  isErrorAuth,
+  isUnverifiedAuth,
+  isLogoutAuth,
+  isVerifyEmailAuth,
+};
