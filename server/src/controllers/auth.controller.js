@@ -216,26 +216,28 @@ const verifyEmail = asyncHandler(async (req, res, next) => {
     throw new ApiError(400, "Invalid verification link");
   }
 
-  // find the user
-  const user = await User.findById(userId);
-
-  // check, if user exist or not
-  if (!user) {
-    throw new ApiError(404, "User not found!");
-  }
-
-  if (user.isVerified) {
-    new ApiResponse(200, "Email Already Verified");
-  }
-
-  // Find verification record
-  const userVerification = await UserVerification.findOne({ userId: userId });
-
-  if (!userVerification) {
-    throw new ApiError(404, "Verification record not found!");
-  }
-
   try {
+    // find the user
+    const user = await User.findById(userId);
+
+    // check, if user exist or not
+    if (!user) {
+      throw new ApiError(404, "User not found!");
+    }
+
+    if (user.isVerified) {
+      return res
+        .status(200)
+        .json(new ApiResponse(200, "Email Already Verified"));
+    }
+
+    // Find verification record
+    const userVerification = await UserVerification.findOne({ userId: userId });
+
+    if (!userVerification) {
+      throw new ApiError(404, "Verification record not found!");
+    }
+
     // verify the token using verifyToken method of userVerification schema
     await userVerification.verifyToken(verificationToken);
 
