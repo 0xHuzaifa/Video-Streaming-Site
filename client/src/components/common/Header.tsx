@@ -13,6 +13,8 @@ import {
 import { Input } from "../ui/input";
 import { Avatar, AvatarFallback, AvatarImage } from "../ui/avatar";
 import { useAppContext } from "@/hooks/UseAppContext";
+import { logoutMutationOptions } from "@/queries/authQueries";
+import { useEffect } from "react";
 
 export default function Header({
   sidebarOpen,
@@ -23,14 +25,31 @@ export default function Header({
 }) {
   const { isLogin } = useAppContext();
 
-  const logout = () => {
-    // Logic to handle logout
-    console.log("User logged out");
-    // Clear user data and update login state
-    localStorage.removeItem("user");
-    localStorage.setItem("isLogin", "false");
-    // Optionally, you can redirect the user or update the UI accordingly
-  };
+  const logout = logoutMutationOptions();
+  // const logout = logoutMutation.mutate;
+
+  // Add useEffect to log state changes
+    useEffect(() => {
+      console.log("Mutation state updated:", {
+        isPending: logout.isPending,
+        isSuccess: logout.isSuccess,
+        isError: logout.isError,
+        status: logout.status,
+        data: logout.data,
+        error: logout.error,
+        variables: logout.variables,
+        submittedAt: logout.submittedAt,
+      });
+    }, [
+      logout.isPending,
+      logout.isSuccess,
+      logout.isError,
+      logout.status,
+      logout.data,
+      logout.error,
+      logout.variables,
+      logout.submittedAt,
+    ]);
 
   return (
     <motion.header
@@ -40,7 +59,7 @@ export default function Header({
       className="fixed top-0 left-0 right-0 bg-slate-900/80 backdrop-blur-xl border-b border-slate-800/50 z-50"
     >
       <div className="flex items-center justify-between px-6 py-4">
-        {/* Left section */}
+        {/* Lef`t section */}
         <div className="flex items-center space-x-4">
           <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
             <Button
@@ -143,7 +162,7 @@ export default function Header({
 
                 <Button
                   className="bg-gradient-to-r from-purple-500 to-blue-500"
-                  onClick={logout}
+                  onClick={() => logout.mutate()}
                 >
                   Logout
                 </Button>
